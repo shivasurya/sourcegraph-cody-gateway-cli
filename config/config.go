@@ -13,7 +13,17 @@ type Config struct {
 
 	DebugSecretToken string
 
-	GatewayMode string
+	CompletionMode string
+
+	VersionAPI bool
+
+	HealthCheckAPI bool
+
+	AnthropicCompletionAPI bool
+
+	EmbeddingsAPI bool
+
+	OpenAICompletionAPI bool
 }
 
 // New will return Config populated with pre-defined defaults.

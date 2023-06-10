@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 type EmbeddingsResponse struct {
@@ -20,6 +22,25 @@ type EmbeddingsResponse struct {
 	} `json:"embeddings"`
 	Model      string `json:"model"`
 	Dimensions int    `json:"dimensions"`
+}
+
+type AnthropicResponse struct {
+	Completion string      `json:"completion"`
+	StopReason string      `json:"stop_reason"`
+	Model      string      `json:"model"`
+	Truncated  bool        `json:"truncated"`
+	Stop       string      `json:"stop"`
+	LogID      string      `json:"log_id"`
+	Exception  interface{} `json:"exception"`
+}
+
+type Message struct {
+	Speaker string `json:"speaker"`
+	Text    string `json:"text"`
+}
+
+type Messages struct {
+	Messages []Message `json:"messages"`
 }
 
 // write a function to make HTTP Get request
@@ -122,6 +143,48 @@ func EmbeddingsAPI(terms []string, host string, accessToken string) (embeddingRe
 	return embeddingsResponse, err
 }
 
+// write a function make Anthropic Completion API - parameters host, access tokens, message , max token int, temperature float, prompt string
+func AnthropicAPI(host string, accessToken string, messages []Message, maxTokens int, temperature float32, prompt string, mode string) (resp AnthropicResponse, err error) {
+	var anthropicResponse AnthropicResponse
+	// make api call to path /v1/completions/anthropic
+	url := fmt.Sprintf("%s/v1/completions/anthropic", host)
+	// create jsonData as per above sample json schema
+	jsonData, _ := json.Marshal(map[string]interface{}{
+		"prompt":               prompt,
+		"messages":             messages,
+		"model":                "claude-v1",
+		"max_tokens_to_sample": maxTokens,
+		"temperature":          temperature,
+	})
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Sourcegraph-Feature", "chat_completions")
+
+	client := http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		return anthropicResponse, err
+	}
+	defer response.Body.Close()
+
+	fmt.Println(response.StatusCode)
+
+	if response.StatusCode != http.StatusOK {
+		err = errors.New("failed to call embeddings api")
+		return
+	}
+
+	// read the response body
+	body, _ := ioutil.ReadAll(response.Body)
+	err = json.Unmarshal(body, &anthropicResponse)
+	if err != nil {
+		// Handle error
+		return anthropicResponse, err
+	}
+	return anthropicResponse, err
+}
+
 func Run(c config.Config) error {
 
 	if c.VersionAPI {
@@ -172,6 +235,52 @@ func Run(c config.Config) error {
 			fmt.Printf("%d\t%v\n", e.Index, e.Data)
 		}
 		fmt.Printf("%s\t%d\t%d\n", resp.Model, resp.Dimensions, len(resp.Embeddings))
+	} else if c.AnthropicCompletionAPI {
+		fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+		fmt.Println("Establishing Session with Anthropic AI 🪄 ✨ (supports multi-line and type --END-- to terminate input):")
+		fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+
+		// get multiline input from user and save it as string
+		// declare string array
+		chatHistory := []Message{}
+
+		input := bufio.NewReader(os.Stdin)
+		for {
+			fmt.Print("You -> ")
+			line, _ := input.ReadString('\n')
+			// convert CRLF to LF
+			line = strings.Replace(line, "\n", "", -1)
+
+			if strings.Compare("--END--", line) == 0 {
+				// break this for loop
+				break
+			} else {
+				resp, err := AnthropicAPI(c.GatewayHost, c.GatewayToken, chatHistory, 500, 0.1, line, c.CompletionMode)
+				if err != nil {
+					return err
+				}
+				fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+				fmt.Println("------------")
+				color.Green("%s", resp.Completion)
+				fmt.Println("------------")
+				fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+				// append text to message interaction
+				// create Message object and append speaker as human and keyphrase as text
+				// create Message object and append speaker as system adn resp.completion as text
+				humanMessage := Message{
+					Speaker: "human",
+					Text:    line,
+				}
+				chatHistory = append(chatHistory, humanMessage)
+				systemMessage := Message{
+					Speaker: "system",
+					Text:    resp.Completion,
+				}
+				chatHistory = append(chatHistory, systemMessage)
+			}
+		}
+	} else if c.OpenAICompletionAPI {
+
 	}
 	return nil
 }

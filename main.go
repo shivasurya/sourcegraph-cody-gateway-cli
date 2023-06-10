@@ -58,6 +58,8 @@ func main() {
 		} else {
 			color.Red("Require --mode chat | code when calling Anthropic or OpenAI APIs")
 		}
+		cfg.AnthropicCompletionAPI = opts.AnthropicCompletionAPI
+		cfg.OpenAICompletionAPI = opts.OpenAICompletionAPI
 	}
 
 	if opts.EmbeddingsAPI {

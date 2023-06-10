@@ -13,11 +13,16 @@ import (
 
 // options are command-line options that are provided by the user.
 type options struct {
-	Verbose          bool   `short:"V" long:"verbose" description:"Enable verbose output"`
-	GatewayHost      string `long:"host" description:"Define an alternate SSH Port" default:"22"`
-	GatewayToken     bool   `long:"accesstoken" description:"Ask for a password to use for cody gateway authentication"`
-	DebugSecretToken string `short:"s" long:"debugtoken" description:"Define a bearer secret token to use" env:"SECRET_TOKEN"`
-	GatewayMode      string `short:"m" long:"mode" description:"Define chat or code completion mode"`
+	Verbose                bool   `short:"V" long:"verbose" description:"Enable verbose output"`
+	GatewayHost            string `long:"host" description:"Define an alternate SSH Port" default:"22"`
+	GatewayToken           bool   `long:"accesstoken" description:"Ask for a password to use for cody gateway authentication"`
+	DebugSecretToken       string `short:"s" long:"debugtoken" description:"Define a bearer secret token to use" env:"SECRET_TOKEN"`
+	CompletionMode         string `short:"m" long:"mode" description:"Define chat or code completion mode"`
+	VersionAPI             bool   `long:"versionapi" description:"Invoke Cody Gateway version api call"`
+	HealthCheckAPI         bool   `long:"healthcheckapi" description:"Invoke Cody Gateway health check api call"`
+	AnthropicCompletionAPI bool   `long:"anthropicapi" description:"Invoke Anthropic Completion API"`
+	EmbeddingsAPI          bool   `long:"embeddingsapi" description:"Invoke Embeddings API call"`
+	OpenAICompletionAPI    bool   `long:"openaiapi" description:"Invoke OpenAI Completions API call"`
 }
 
 func main() {
@@ -33,20 +38,30 @@ func main() {
 	cfg := config.New()
 	cfg.Verbose = opts.Verbose
 	cfg.GatewayHost = opts.GatewayHost
-	if opts.GatewayMode != "" {
-		cfg.GatewayMode = opts.GatewayMode
-	}
+
 	if opts.DebugSecretToken != "" {
 		cfg.DebugSecretToken = opts.DebugSecretToken
 	}
 
 	if opts.GatewayToken {
-		color.White("Enter Cody Gateway Access Token for %s: ", cfg.GatewayToken)
+		color.White("Enter Cody Gateway Access Token for ")
 		p, err := gopass.GetPasswd()
 		if err != nil {
 			color.Red("Unable to obtain Cody Gateway Access Token: %s", err)
 		}
 		cfg.GatewayToken = string(p)
+	}
+
+	if opts.AnthropicCompletionAPI || opts.OpenAICompletionAPI {
+		if opts.CompletionMode != "" {
+			cfg.CompletionMode = opts.CompletionMode
+		} else {
+			color.Red("Require --mode chat | code when calling Anthropic or OpenAI APIs")
+		}
+	}
+
+	if opts.EmbeddingsAPI {
+		cfg.EmbeddingsAPI = opts.EmbeddingsAPI
 	}
 
 	// Run the App

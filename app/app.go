@@ -34,12 +34,41 @@ type AnthropicResponse struct {
 	Exception  interface{} `json:"exception"`
 }
 
+type OpenAIResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	Model   string `json:"model"`
+	Usage   struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+	Choices []struct {
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+		Index        int    `json:"index"`
+	} `json:"choices"`
+}
+
 type Message struct {
 	Speaker string `json:"speaker"`
 	Text    string `json:"text"`
 }
 
 type Messages struct {
+	Messages []Message `json:"messages"`
+}
+
+type OpenAIMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type OpenAIMessages struct {
 	Messages []Message `json:"messages"`
 }
 
@@ -185,6 +214,46 @@ func AnthropicAPI(host string, accessToken string, messages []Message, maxTokens
 	return anthropicResponse, err
 }
 
+// write a function make Anthropic Completion API - parameters host, access tokens, message , max token int, temperature float, prompt string
+func OpenAIAPI(host string, accessToken string, messages []OpenAIMessage, maxTokens int, temperature float32, mode string) (resp OpenAIResponse, err error) {
+	var openaiResponse OpenAIResponse
+	// make api call to path /v1/completions/openai
+	url := fmt.Sprintf("%s/v1/completions/openai", host)
+	// create jsonData as per above sample json schema
+	jsonData, _ := json.Marshal(map[string]interface{}{
+		"messages":    messages,
+		"model":       "gpt-3.5-turbo",
+		"max_tokens":  maxTokens,
+		"temperature": temperature,
+	})
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Sourcegraph-Feature", "chat_completions")
+
+	client := http.Client{}
+	response, err := client.Do(req)
+
+	if err != nil {
+		return openaiResponse, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		err = errors.New("failed to call embeddings api")
+		return
+	}
+
+	// read the response body
+	body, _ := ioutil.ReadAll(response.Body)
+	err = json.Unmarshal(body, &openaiResponse)
+	if err != nil {
+		// Handle error
+		return openaiResponse, err
+	}
+	return openaiResponse, err
+}
+
 func Run(c config.Config) error {
 
 	if c.VersionAPI {
@@ -280,7 +349,51 @@ func Run(c config.Config) error {
 			}
 		}
 	} else if c.OpenAICompletionAPI {
+		fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+		fmt.Println("Establishing Session with OpenAI GPT-3.5-Turbo 🪄 ✨ (supports multi-line and type --END-- to terminate input):")
+		fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
 
+		// get multiline input from user and save it as string
+		// declare string array
+		chatHistory := []OpenAIMessage{}
+
+		input := bufio.NewReader(os.Stdin)
+		for {
+			fmt.Print("You -> ")
+			line, _ := input.ReadString('\n')
+			// convert CRLF to LF
+			line = strings.Replace(line, "\n", "", -1)
+
+			if strings.Compare("--END--", line) == 0 {
+				// break this for loop
+				break
+			} else {
+				humanMessage := OpenAIMessage{
+					Role:    "user",
+					Content: line,
+				}
+				chatHistory = append(chatHistory, humanMessage)
+
+				resp, err := OpenAIAPI(c.GatewayHost, c.GatewayToken, chatHistory, 500, 0.1, c.CompletionMode)
+				if err != nil {
+					return err
+				}
+				fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+				fmt.Println("------------")
+				color.Green("%s", resp.Choices[0].Message.Content)
+				fmt.Println("------------")
+				fmt.Println("🪄 🪄 🪄 🪄 🪄 🪄 ")
+				// append text to message interaction
+				// create Message object and append speaker as human and keyphrase as text
+				// create Message object and append speaker as system adn resp.completion as text
+
+				systemMessage := OpenAIMessage{
+					Role:    "assistant",
+					Content: resp.Choices[0].Message.Content,
+				}
+				chatHistory = append(chatHistory, systemMessage)
+			}
+		}
 	}
 	return nil
 }

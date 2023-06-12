@@ -3,7 +3,6 @@ package main
 import (
 	"cody-gateway-cli/app"
 	"cody-gateway-cli/config"
-	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -27,9 +26,8 @@ type options struct {
 
 func main() {
 	var opts options
-	args, err := flags.ParseArgs(&opts, os.Args[1:])
-	// print args
-	fmt.Println(args)
+	_, err := flags.ParseArgs(&opts, os.Args[1:])
+
 	if err != nil {
 		os.Exit(1)
 	}
@@ -41,6 +39,14 @@ func main() {
 
 	if opts.DebugSecretToken != "" {
 		cfg.DebugSecretToken = opts.DebugSecretToken
+	}
+
+	if opts.HealthCheckAPI {
+		cfg.HealthCheckAPI = opts.HealthCheckAPI
+	}
+
+	if opts.VersionAPI {
+		cfg.VersionAPI = opts.VersionAPI
 	}
 
 	if opts.GatewayToken {

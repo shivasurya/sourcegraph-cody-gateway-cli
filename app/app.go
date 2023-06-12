@@ -269,6 +269,8 @@ func Run(c config.Config) error {
 		}
 		if !ok {
 			return fmt.Errorf("health check failed")
+		} else {
+			fmt.Printf("✅ Health check OK!\n")
 		}
 	} else if c.EmbeddingsAPI {
 

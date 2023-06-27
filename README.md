@@ -1,4 +1,4 @@
-# Cody Gateway CLI
+# Cody Gateway CLI (un-official)
 
 This CLI project refers test cody-gateway API from command line.
 
